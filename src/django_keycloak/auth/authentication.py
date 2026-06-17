@@ -6,7 +6,7 @@ from django_keycloak.auth.backends import KeycloakIDTokenAuthorizationBackend as
 
 
 from rest_framework import HTTP_HEADER_ENCODING, exceptions
-from jose.exceptions import ExpiredSignatureError, JWTClaimsError, JWTError
+from jose.exceptions import ExpiredSignatureError, JOSEError, JWTClaimsError
 from django.utils.translation import gettext_lazy as _
 
 logger = logging.getLogger(__name__)
@@ -76,11 +76,12 @@ class KeycloakIDAuthentication(BaseAuthentication):
                          'authenticate due to failing claim checks: "%s"'
                          % str(e))
             raise exceptions.AuthenticationFailed(_('Invalid claim.'))
-        except JWTError:
-            # The signature is invalid in any way.
+        except JOSEError:
+            # The token is malformed or its signature is invalid in any way
+            # (JWTError, JWSError, JWKError, ... all subclass JOSEError).
             logger.debug('KeycloakBearerAuthorizationBackend: failed to '
                          'authenticate due to a malformed access token.')
-            raise exceptions.AuthenticationFailed(_('Invalid access token2.'))
+            raise exceptions.AuthenticationFailed(_('Invalid token.'))
         else:
             if not oidc_profile.user.is_active:
                 raise exceptions.AuthenticationFailed(_('User inactive or deleted.'))

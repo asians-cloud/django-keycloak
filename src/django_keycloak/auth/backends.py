@@ -6,8 +6,8 @@ from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
 from jose.exceptions import (
     ExpiredSignatureError,
+    JOSEError,
     JWTClaimsError,
-    JWTError,
 )
 from keycloak.exceptions import KeycloakClientError
 
@@ -160,8 +160,9 @@ class KeycloakIDTokenAuthorizationBackend(KeycloakAuthorizationBase):
             logger.debug('KeycloakBearerAuthorizationBackend: failed to '
                          'authenticate due to failing claim checks: "%s"'
                          % str(e))
-        except JWTError:
-            # The signature is invalid in any way.
+        except JOSEError:
+            # The token is malformed or its signature is invalid in any way
+            # (JWTError, JWSError, JWKError, ... all subclass JOSEError).
             logger.debug('KeycloakBearerAuthorizationBackend: failed to '
                          'authenticate due to a malformed access token.')
         else:
