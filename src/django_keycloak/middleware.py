@@ -1,3 +1,4 @@
+import logging
 import re
 
 from django.conf import settings
@@ -9,6 +10,8 @@ from django.http import HttpResponse
 
 from django_keycloak.models import Realm
 from django_keycloak.auth import get_remote_user
+
+logger = logging.getLogger(__name__)
 
 
 def get_realm(request):
@@ -97,15 +100,29 @@ class KeycloakStatelessBearerAuthenticationMiddleware(BaseKeycloakMiddleware):
             try:
                 _, token = request.META[self.header_key].split(' ')
             except ValueError:
+                # Malformed "Authorization" header (e.g. "Bearer" with no
+                # token, or extra spaces). This middleware runs before DRF,
+                # so an unhandled error here would 500; return 401 instead.
+                # (AC-1600)
                 return HttpResponse(
                     status=401,
                     content="Token is empty"
                 )
 
-            user = authenticate(
-                request=request,
-                access_token=token
-            )
+            try:
+                user = authenticate(
+                    request=request,
+                    access_token=token
+                )
+            except Exception:
+                # Even a well-formed header can carry a junk JWT that makes the
+                # backend raise; that must never become a 500 from middleware.
+                # Treat it as unauthenticated and let the DRF auth layer return
+                # a proper 401 "Invalid token." for API requests. (AC-1600)
+                logger.warning(
+                    'StatelessBearer middleware: ignoring malformed bearer '
+                    'token', exc_info=True)
+                return
 
             if user is None:
                 return
